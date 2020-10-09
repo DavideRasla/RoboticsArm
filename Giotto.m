@@ -2,8 +2,8 @@ clear all; clc;
 %% Robot
 
 L1 = Link('d', 0,  'a', 0,   'alpha', pi/2);
-L2 = Link('d', 0,  'a', 200,   'alpha', 0);
-L3 = Link('d', 0,  'a', 2000,   'alpha', -pi/2);
+L2 = Link('d', 0,  'a', 2,   'alpha', 0);
+L3 = Link('d', 0,  'a', 2,   'alpha', -pi/2);
 L4 = Link('d', 0,  'a', 0,   'alpha', -pi/2);
 L5 = Link('d', 0,  'a', 0,   'alpha', pi/2, 'offset', pi/2);
 L6 = Link('d', 0,  'a', 0,   'alpha', 0);
@@ -17,7 +17,7 @@ rob = SerialLink(L , 'name', 'WALLe');
 format long g;
 format compact;
 fontSize = 36;
-rgbImage = imread('Image2.png');
+rgbImage = imread('Hands.png');
 
 % Get the dimensions of the image.  numberOfColorBands should be = 3.
 [rows, columns, numberOfColorBands] = size(rgbImage);
@@ -46,21 +46,13 @@ imshow(binaryImage);
 
 
                                                        
-%{
-%plotting each trajectory given by bwboundaries()
-    for k=1:length(B),
-    	boundary = B{k};
-        figure
-    	plot(boundary(:,1), boundary(:,2),'.r')
-    end
-%}
-                                                       
+                               
                                                        
 %Display parent boundaries in red and their holes in green.
      
-      %imshow(binaryImage); 
-       hold on;
-       % Loop through object boundaries
+
+hold on;
+
 trajectories = cell(0);
 
     for k =1:length(B)
@@ -75,13 +67,13 @@ trajectories = cell(0);
 
     end
 
-%rescaling into  [0:1]
+%rescaling into  [0:2]
 figure
 hold on
 
     for k=1:length(trajectories)
-       % trajectories{k} = rescale(trajectories{k}, 0,2);
-       % plot( trajectories{k}(:,2),  trajectories{k}(:,1), 'g', 'LineWidth', 2);
+        trajectories{k} = rescale(trajectories{k}, 0,3);
+        plot( trajectories{k}(:,2),  trajectories{k}(:,1), 'g', 'LineWidth', 2);
        
     end
 
@@ -94,8 +86,8 @@ hold on
 %filtering
 V = []
 for i = 1:length(trajectories)
-    if length(trajectories{i}) > 2000 %only if necessary
-        for j = 1:70:length(trajectories{i})% 7 it's the step size. A large step size
+    if length(trajectories{i}) > 1500 %only if necessary
+        for j = 1:6:length(trajectories{i})% 7 it's the step size. A large step size
                                            % requires less time but
                                            % it is less precise. 
                                            % Anyway 7 is a good compromise
@@ -103,7 +95,15 @@ for i = 1:length(trajectories)
         end
        trajectories{i} = V;    
     end
-
+    if length(trajectories{i}) > 400 %only if necessary
+        for j = 1:3:length(trajectories{i})% 7 it's the step size. A large step size
+                                           % requires less time but
+                                           % it is less precise. 
+                                           % Anyway 7 is a good compromise
+          V = [V; trajectories{i}(j,:)];   
+        end
+       trajectories{i} = V;    
+    end
     V = [];
 end
 
@@ -111,16 +111,20 @@ end
 
 %q_def = cell(0)
 q_def = [];
+Offset = 0.3;
+
  for k=1:length(trajectories)
     path = trajectories{k}';
     pathAll = [path; zeros(1,numcols(path))];
     path1=pathAll;
     traj1 = mstraj(path1(:,2:end)',[0.8 0.8 0.8], [], path1(:,1)', 0.3, 0.2);
-    Tp1 =  SE3(0, 0.6, -0.8) * SE3(traj1) * SE3.oa( [0 1 0], [0 0 -1]);
+    Tp1 =  SE3(-2, -2.5, -0.8) * SE3(traj1) * SE3.oa( [0 1 0], [0 0 -1]);
+    Offset = Offset + 1;
     q_traj = rob.ikine6s(Tp1);
     q_def = [q_def; q_traj]; 
  end
 
+q_def = [q_def; qz]; 
 %plotting the result (This can take a while...)
 
 hold on;
