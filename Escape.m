@@ -2,8 +2,8 @@ clear all; clc;
 %% Robot
 
 L1 = Link('d', 0,  'a', 0,   'alpha', pi/2);
-L2 = Link('d', 0,  'a', 5,   'alpha', 0);
-L3 = Link('d', 0,  'a', 5,   'alpha', -pi/2);
+L2 = Link('d', 0,  'a', 1,   'alpha', 0);
+L3 = Link('d', 0,  'a', 1,   'alpha', -pi/2);
 L4 = Link('d', 0,  'a', 0,   'alpha', -pi/2);
 L5 = Link('d', 0,  'a', 0,   'alpha', pi/2, 'offset', pi/2);
 L6 = Link('d', 0,  'a', 0,   'alpha', 0);
@@ -17,7 +17,13 @@ rob = SerialLink(L , 'name', 'WALLe');
 format long g;
 format compact;
 fontSize = 36;
-rgbImage = imread('Image.png');
+rgbImage = imread('Image2.png');
+figure
+%imshow('image4.png')
+%[xi,yi] = getpts
+
+
+
 % Get the dimensions of the image.  numberOfColorBands should be = 3.
 [rows, columns, numberOfColorBands] = size(rgbImage);
 % Display the original color image.
@@ -30,11 +36,11 @@ rgbImage = imread('Image.png');
 % redChannel = rgbImage(:, :, 1);
 greenChannel = rgbImage(:, :, 2);
 % blueChannel = rgbImage(:, :, 3);
-% Get the binaryImage
+% Get the binaryImagepathAll = [path; zeros(1,numcols(path))];
 binaryImage = greenChannel < 200;
 % Display the original color image.
 %subplot(2, 2, 2);
-imshow(binaryImage);
+%imshow(binaryImage);
 
 % Find the baseline
 verticalProfile  = sum(binaryImage, 2);
@@ -51,11 +57,25 @@ end
 %subplot(2, 2, 3);
 %plot(1 : columns, y, 'b-', 'LineWidth', 3);
 
+hold on; [B,L,N] = bwboundaries(binaryImage,'noholes');%use 'noholes' to simplify
 
-[rows, columns] = find(binaryImage==0); % 2 1-D vectors.
-xy = [columns, rows]; % Stitch together to form N by 2 (x,y) array
+trajectories = cell(0);
+    for k=1:length(B),
+    	boundary = B{k};
+        xy = [B{k}(:,1), B{k}(:,2)];
+        trajectories = [trajectories; xy]
+    	%plot(boundary(:,2), boundary(:,1),'.r')
+    end
 
+xy = [B{1}(:,1), B{1}(:,2)]; % 2 1-D vectors.
 
+    for k=1:length(trajectories),
+        trajectories{k} = rescale(trajectories{k})
+    end
+
+%xy = [columns, rows]; % Stitch together to form N by 2 (x,y) array
+
+%plot(xy(:,1), xy(:,2))
 
 
 
@@ -71,22 +91,25 @@ xy = [columns, rows]; % Stitch together to form N by 2 (x,y) array
 %ds.plan(goal)%add animate
 %path = ds.query(start)
 %path = path';
-path = xy';
-pathAll = [0.01*path; zeros(1,numcols(path))];
-%path1 = [pathAll(1,[1:1000]);pathAll(2,[1:1000]);pathAll(3,[1:1000]);]
-path1=pathAll;
-path1 = ceil(path1);
-path1 = unique(path1.','rows')
-path1 = path1';
-traj1 = mstraj(path1(:,2:end)',[0.5 0.5 0.5], [], path1(:,1)', 2, 0.2,'verbose');
+%%%path = xy';
+q_def = [];
+ for k=1:length(trajectories)
+    path = trajectories{k}';
+    pathAll = [path; zeros(1,numcols(path))];
+    path1=pathAll;
+    %path1 = ceil(path1);
+    %path1 = unique(path1.','rows')
+    %path1 = path1';
+    traj1 = mstraj(path1(:,2:end)',[0.8 0.8 0.8], [], path1(:,1)', 2, 0.4);
 
-Tp1 = SE3(traj1)* SE3.oa( [0 1 0], [0 0 -1]); 
+    Tp1 =  SE3(0, 0.6, -0.4) * SE3(traj1) * SE3.oa( [0 1 0], [0 0 -1]);
 
-q_traj = rob.ikine6s(Tp1);
-option = {'k.', 'LineWidth', 1};
-
-
-rob.plot(q_traj, 'trail', {'r.', 'LineWidth', 2});
+    q_traj = rob.ikine6s(Tp1);
+    q_def = [q_def; q_traj];
+    
+ end
+rob.plot(q_def, 'trail', {'r.', 'LineWidth', 2});
+%rob.plot(q_traj, 'trail', {'r.', 'LineWidth', 2});
 
 %rob.plot(q_traj);
 %{
