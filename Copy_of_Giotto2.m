@@ -11,8 +11,6 @@ qz = [0 0 0 0 0 0];
 L = [L1 L2 L3 L4 L5 L6];
 rob = SerialLink(L , 'name', 'Giotto');
 
-
-
 %% Getting the Image
 binaryImage = CreatingBinary();
 
@@ -24,8 +22,8 @@ hold on;
 [trajectories, B,L,N, A]  = GettingTrajectories(binaryImage);
 
 
-%% Creation of a single trajectory
-figure
+%%  Filtering the boundaries
+
 %filtering the points in order to reduce the #
 trajectories = Filtering(trajectories);
 
@@ -43,14 +41,17 @@ k0 = 1;
 t = 5;
 obs = [0.4 -0.4 (-0.4 - 0.02)];
 hold on;
- for k=1:length(trajectories)
+ for k=1:1%length(trajectories)
     InitialPath = trajectories{k}';
     ExtendedPath = [InitialPath; zeros(1,numcols(InitialPath));];
     traj = mstraj(ExtendedPath(:,2:end)',[0.8 0.8 0.8], [], ExtendedPath(:,1)', 0.3, 0.2);
     if k == 1
         p_start = traj;
     end
-    %q_opt = optimize(rob, k0, t, obs, qpartenza, p_start);
+   
+    q_opt = Opti(rob, k0, t, obs, qpartenza, p_start);
+    q_opt
+    plot(q_opt(:,2), q_opt(:,1), 'r', 'LineWidth', 2);
     Tp =  SE3(-2, -2.5, -0.8) * SE3(traj) * SE3.oa( [0 1 0], [0 0 -1]);
     q_traj = rob.ikine6s(Tp);
     m = rob.maniplty(q_traj);
@@ -58,10 +59,10 @@ hold on;
     q_def = [q_def; q_traj]; 
  end
 
-%plot_sphere(obs, 0.6, 'y');
-%q_opt = optimize(rob, k0, t, obs, qpartenza, p_start);
+plot_sphere(obs, 0.6, 'y');
+q_opt = Opti(rob, k0, t, obs, qpartenza, p_start);
 
-%q_def = [q_opt; q_def];
+q_def = [q_opt; q_def];
 
 %% plotting the result (This can take a while...)
 
@@ -98,7 +99,7 @@ function binaryImage = CreatingBinary()
 format long g;
 format compact;
 fontSize = 36;
-rgbImage = imread('Images/Image2.png');
+rgbImage = imread('Images/Image.png');
 
 % Get the dimensions of the image.  numberOfColorBands should be = 3.
 [rows, columns, numberOfColorBands] = size(rgbImage);
@@ -116,74 +117,33 @@ binaryImage = greenChannel < 200;
 end
 
 function[trajectories, B,L,N, A] =  GettingTrajectories(binaryImage)
-figure
-hold on;
+
+
 [B,L,N, A] = bwboundaries(binaryImage,4,'holes');%use 'noholes'
                                                  %to simplify
 trajectories = cell(0);
 
-%% Getting the max value for each traj
-max_Arrays = cell(0);
-max_X = 0;
-max_Y = 0;
- 
     for k =1:length(B)
        boundary = B{k};
-       if length(B{k}) > 10 % Not empty traj
-        %getting the max
-           for i = 1:length(B{k})
-               if boundary(i,2) > max_X
-                   max_X = boundary(i,2);
-               end
-               if boundary(i,1) > max_Y
-                    max_Y = boundary(i,1);
-               end  
-           end
-           
-          max_Arrays = [max_Arrays; [max_X, max_Y]]; %adding to the cell array
-          max_X = 0;
-          max_Y = 0;
-       %getting the traj
+      % plot(boundary(:,2), boundary(:,1), 'r', 'LineWidth', 2);
+      if length(B{k}) > 10 % Not empty traj
            xy = [B{k}(:,2), B{k}(:,1)];
-           trajectories = [trajectories; xy];
-          
-       end
-    end
-
-
-    
-%Manual rescaling
-maxX = 0;
-maxY = 0;
-for i=1:length(max_Arrays)
-    if max_Arrays{i}(1) > maxX
-        maxX = max_Arrays{i}(1);
-    end
-     if max_Arrays{i}(2) > maxY
-        maxY = max_Arrays{i}(2);
-    end
-end
-      for k =1:length(B)
-          for i = 1:length(trajectories{k})
-           trajectories{k}(i,1) = trajectories{k}(i,1) / maxX * 2;%dividing maxX
-           trajectories{k}(i,2) = trajectories{k}(i,2) / maxY * 2;%dividing maxY
-          end
-          plot(trajectories{k}(:,2), trajectories{k}(:,1), 'r', 'LineWidth', 2);
+           trajectories = [trajectories; xy]
+         % plot(B{k}(:,2), B{k}(:,1), 'r', 'LineWidth', 2);
       end
-      
-  end
 
-    %{
+    end
+
 %rescaling into  [0:3]
 figure
 hold on
 
     for k=1:length(trajectories)
         trajectories{k} = rescale(trajectories{k}, 0,3);
-        plot( trajectories{k}(:,2),  trajectories{k}(:,1), 'g', 'LineWidth', 2);
+        %plot( trajectories{k}(:,2),  trajectories{k}(:,1), 'g', 'LineWidth', 2);
        
     end
-   %}
+end
 
 
 function trajectories = Filtering(trajectories)
@@ -210,7 +170,7 @@ function trajectories = Filtering(trajectories)
 end
 
 
-function q_opt = optimize(robot, k0, t, o, qp, p)
+function q_opt = Opti(robot, k0, t, o, qp, p)
     syms s1 s2 s3 s4 s5 s6;
     joints = [s1 s2 s3 s4 s5 s6];
     q_opt = [];
@@ -220,7 +180,7 @@ function q_opt = optimize(robot, k0, t, o, qp, p)
     
     for i= 1:t
         if i == 1
-            q_prec = robot.ikine(qp);
+            q_prec = robot.ikine6s(qp);
             J = robot.jacob0(q_prec);
             ve = (p(1,:) - [0.4 0 -0.4])/(1/t);
         else

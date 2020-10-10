@@ -24,8 +24,8 @@ p_start = mstraj(path_start, [], [1, 1]', path_start(1,:), 0.1, 0);
 
 load hershey
 
-B = hershey{'D'}
-C = hershey{'I'}
+B = hershey{'C'}
+C = hershey{'O'}
 dot = hershey{'.'};
 
 path1 = [0.5*B.stroke; zeros(1,numcols(B.stroke))];
@@ -75,13 +75,15 @@ qend = rob.ikine6s(Tp5);
 k0 = 1;
 t = 5;
 o = [0.2 0.13 (-0.4 - 0.02)];
+figure
+plot_sphere(o, 0.2, 'y');
 qpartenza = transl(path_start(1,:))*trotx(pi);
 
 q_opt = optimize(rob, k0, t, o, qpartenza,p_start );
 qdef = [q_opt; q1; q2;q3; q4; qend];
 
 option = {'k.', 'LineWidth', 1};
-plot_sphere(o, 0.2, 'y');
+
 
 rob.plot(qdef, 'trail', {'r.', 'LineWidth', 2});
 
