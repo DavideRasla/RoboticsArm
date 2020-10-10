@@ -18,7 +18,7 @@ binaryImage = CreatingBinary();
 
 imshow(binaryImage);
 
-%% Finding the boundarie
+%% Finding the boundaries and rescaling manually the traj
 
 hold on;
 [trajectories, B,L,N, A]  = GettingTrajectories(binaryImage);
@@ -29,9 +29,9 @@ figure
 %filtering the points in order to reduce the #
 trajectories = Filtering(trajectories);
 
-%% Mstraj
+%% Mstraj for each traj
 
-%q_def = cell(0)
+
 q_def = [];
 path_start = [0.4 0 -0.4; -0.38 0.5 -0.4];
 %p_start = mstraj(path_start, [], [1, 1]', path_start(1,:), 0.1, 0);
@@ -47,31 +47,45 @@ hold on;
     InitialPath = trajectories{k}';
     ExtendedPath = [InitialPath; zeros(1,numcols(InitialPath));];
     traj = mstraj(ExtendedPath(:,2:end)',[0.8 0.8 0.8], [], ExtendedPath(:,1)', 0.3, 0.2);
-    if k == 1
-        p_start = traj;
-    end
-    %q_opt = optimize(rob, k0, t, obs, qpartenza, p_start);
-    Tp =  SE3(-2, -2.5, -0.8) * SE3(traj) * SE3.oa( [0 1 0], [0 0 -1]);
+    Tp =  SE3(0, 0, -3) * SE3(traj) * SE3.oa([0 1 0], [0, 0, -1]);
     q_traj = rob.ikine6s(Tp);
     m = rob.maniplty(q_traj);
     m;
     q_def = [q_def; q_traj]; 
  end
-
+q_def = [q_def; qz]; 
 %plot_sphere(obs, 0.6, 'y');
-%q_opt = optimize(rob, k0, t, obs, qpartenza, p_start);
-
-%q_def = [q_opt; q_def];
 
 %% plotting the result (This can take a while...)
 
    
 rob.plot(q_def, 'xyz','noraise', 'trail', {'r.', 'LineWidth', 2});
 
-for i = 1:length(q_def)
-     
-    %rob.plot(q_def{i}, 'wrist', 'trail', {'r.', 'LineWidth', 2});
-end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%% FUNCTIONS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -98,7 +112,7 @@ function binaryImage = CreatingBinary()
 format long g;
 format compact;
 fontSize = 36;
-rgbImage = imread('Images/Image2.png');
+rgbImage = imread('Images/Marge.png');
 
 % Get the dimensions of the image.  numberOfColorBands should be = 3.
 [rows, columns, numberOfColorBands] = size(rgbImage);
@@ -132,11 +146,11 @@ max_Y = 0;
        if length(B{k}) > 10 % Not empty traj
         %getting the max
            for i = 1:length(B{k})
-               if boundary(i,2) > max_X
-                   max_X = boundary(i,2);
+               if boundary(i,1) > max_X
+                   max_X = boundary(i,1);
                end
-               if boundary(i,1) > max_Y
-                    max_Y = boundary(i,1);
+               if boundary(i,2) > max_Y
+                    max_Y = boundary(i,2);
                end  
            end
            
@@ -144,31 +158,33 @@ max_Y = 0;
           max_X = 0;
           max_Y = 0;
        %getting the traj
-           xy = [B{k}(:,2), B{k}(:,1)];
-           trajectories = [trajectories; xy];
-          
+           xy = [B{k}(:,1), B{k}(:,2)];
+           trajectories = [trajectories; xy];        
        end
     end
 
 
     
-%Manual rescaling
-maxX = 0;
-maxY = 0;
-for i=1:length(max_Arrays)
-    if max_Arrays{i}(1) > maxX
-        maxX = max_Arrays{i}(1);
+%Manual rescaling: Getting the largest values of them all
+    maxX = 0;
+    maxY = 0;
+    for i=1:length(max_Arrays)
+        if max_Arrays{i}(1) > maxX
+            maxX = max_Arrays{i}(1);
+        end
+         if max_Arrays{i}(2) > maxY
+            maxY = max_Arrays{i}(2);
+        end
     end
-     if max_Arrays{i}(2) > maxY
-        maxY = max_Arrays{i}(2);
-    end
-end
-      for k =1:length(B)
+%Rescaling each traj by the max values of all, for each axis, multipling
+%by two in order to obtain [0;2]
+
+      for k =1:length(trajectories)
           for i = 1:length(trajectories{k})
            trajectories{k}(i,1) = trajectories{k}(i,1) / maxX * 2;%dividing maxX
            trajectories{k}(i,2) = trajectories{k}(i,2) / maxY * 2;%dividing maxY
           end
-          plot(trajectories{k}(:,2), trajectories{k}(:,1), 'r', 'LineWidth', 2);
+          plot(trajectories{k}(:,1), trajectories{k}(:,2), 'r', 'LineWidth', 2);
       end
       
   end
@@ -190,17 +206,17 @@ function trajectories = Filtering(trajectories)
     V = [];
     for i = 1:length(trajectories)
          if length(trajectories{i}) > 3500 %only if necessary
-            for j = 1:20:length(trajectories{i})% 7 it's the step size. A large step size  it is less precise. Anyway 7 is a good compromise
+            for j = 1:30:length(trajectories{i})% 7 it's the step size. A large step size  it is less precise. Anyway 7 is a good compromise
               V = [V; trajectories{i}(j,:)];   
             end
             trajectories{i} = V;    
          elseif length(trajectories{i}) > 1500 %only if necessary
-            for j = 1:7:length(trajectories{i})% 7 it's the step size. A large step size  it is less precise. Anyway 7 is a good compromise
+            for j = 1:10:length(trajectories{i})% 7 it's the step size. A large step size  it is less precise. Anyway 7 is a good compromise
               V = [V; trajectories{i}(j,:)];   
             end
             trajectories{i} = V;    
          elseif length(trajectories{i}) > 400 %only if necessary
-            for j = 1:3:length(trajectories{i})% 7 it's the step size. A large step size  it is less precise. Anyway 7 is a good compromise
+            for j = 1:6:length(trajectories{i})% 7 it's the step size. A large step size  it is less precise. Anyway 7 is a good compromise
               V = [V; trajectories{i}(j,:)];   
             end
             trajectories{i} = V;    
