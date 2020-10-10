@@ -5,10 +5,13 @@ L1 = Link('d', 0,  'a', 0,   'alpha', pi/2);
 L2 = Link('d', 0,  'a', 2,   'alpha', 0);
 L3 = Link('d', 0,  'a', 2,   'alpha', -pi/2);
 L4 = Link('d', 0,  'a', 0,   'alpha', -pi/2);
-L5 = Link('d', 0,  'a', 0,   'alpha', pi/2, 'offset', pi/2);
-L6 = Link('d', 0,  'a', 0,   'alpha', 0);
-qz = [0 0 0 0 0 0];
-L = [L1 L2 L3 L4 L5 L6];
+L5 = Link('d', 0,  'a', 2,   'alpha', pi/2);
+L6 = Link('d', 0,  'a', 0,   'alpha', -pi/2, 'offset', pi/2);
+L7 = Link('d', 0,  'a', 0,   'alpha', 0);
+
+qz = [0 0 0 0 0 0 0];
+
+L = [L1 L2 L3 L4 L5 L6; L7];
 rob = SerialLink(L , 'name', 'Giotto');
 
 
@@ -37,7 +40,6 @@ path_start = [0.4 0 -0.4; -0.38 0.5 -0.4];
 %p_start = mstraj(path_start, [], [1, 1]', path_start(1,:), 0.1, 0);
 
 qpartenza = transl(path_start(1,:))*trotx(pi);
-
 q_def = [q_def; qz];
 k0 = 1;
 t = 5;
@@ -47,8 +49,8 @@ hold on;
     InitialPath = trajectories{k}';
     ExtendedPath = [InitialPath; zeros(1,numcols(InitialPath));];
     traj = mstraj(ExtendedPath(:,2:end)',[0.8 0.8 0.8], [], ExtendedPath(:,1)', 0.3, 0.2);
-    Tp =  SE3(0, 0, -3) * SE3(traj) * SE3.oa([0 1 0], [0, 0, -1]);
-    q_traj = rob.ikine6s(Tp);
+    Tp =  SE3(0, 0, -2) * SE3(traj) * SE3.oa([0 1 0], [0, 0, -1]);
+    q_traj = rob.ikine(Tp);
     m = rob.maniplty(q_traj);
     m;
     q_def = [q_def; q_traj]; 
@@ -60,6 +62,13 @@ q_def = [q_def; qz];
 
    
 rob.plot(q_def, 'xyz','noraise', 'trail', {'r.', 'LineWidth', 2});
+
+
+
+
+
+
+
 
 
 
@@ -105,7 +114,7 @@ function binaryImage = CreatingBinary()
 format long g;
 format compact;
 fontSize = 36;
-rgbImage = imread('Images/Marge.png');
+rgbImage = imread('Images/Image2.png');
 
 % Get the dimensions of the image.  numberOfColorBands should be = 3.
 [rows, columns, numberOfColorBands] = size(rgbImage);
@@ -174,7 +183,7 @@ max_Y = 0;
 
       for k =1:length(trajectories)
           for i = 1:length(trajectories{k})
-           trajectories{k}(i,1) = trajectories{k}(i,1) / maxX * 2;%dividing maxX
+           trajectories{k}(i,1) = trajectories{k}(i,1) / maxX * 4;%dividing maxX
            trajectories{k}(i,2) = trajectories{k}(i,2) / maxY * 2;%dividing maxY
           end
           plot(trajectories{k}(:,1), trajectories{k}(:,2), 'r', 'LineWidth', 2);
