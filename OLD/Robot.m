@@ -74,9 +74,14 @@ qend = rob.ikine6s(Tp5);
 
 k0 = 1;
 t = 5;
-o = [0.2 0.13 (-0.4 - 0.02)];
+o = [-0.5 0.5 (-0.4 - 0.02)];
 figure
 plot_sphere(o, 0.2, 'y');
+
+
+path_start = [0.4 0 -0.4; -0.38 0.5 -0.4];
+p_start = mstraj(path_start, [], [1, 1]', path_start(1,:), 0.1, 0);
+
 qpartenza = transl(path_start(1,:))*trotx(pi);
 
 q_opt = optimize(rob, k0, t, o, qpartenza,p_start );
@@ -89,7 +94,7 @@ rob.plot(qdef, 'trail', {'r.', 'LineWidth', 2});
 
 
 function q_opt = optimize(robot, k0, t, o, qp, p)
-    syms s1 s2 s3 s4 s5 s6;
+    syms s1 s2 s3 s4 s5 s6 ;
     joints = [s1 s2 s3 s4 s5 s6];
     q_opt = [];
     

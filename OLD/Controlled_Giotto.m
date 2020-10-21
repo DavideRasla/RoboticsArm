@@ -2,16 +2,23 @@ clear all; clc;
 %% Robot
 
 L1 = Link('d', 0,  'a', 0,   'alpha', pi/2);
-L2 = Link('d', 0,  'a', 2,   'alpha', 0);
-L3 = Link('d', 0,  'a', 2,   'alpha', -pi/2);
-L4 = Link('d', 0,  'a', 0,   'alpha', -pi/2);
-L5 = Link('d', 0,  'a', 0,   'alpha', pi/2, 'offset', pi/2);
-L6 = Link('d', 0,  'a', 0,   'alpha', 0);
-qz = [0 0 0 0 0 0];
-L = [L1 L2 L3 L4 L5 L6];
+L2 = Link('d', 0,  'a', 1,   'alpha', pi/2);
+L3 = Link('d', 0,  'a', 1,   'alpha', -pi/2);
+L4 = Link('d', 0,  'a', 1,   'alpha', -pi/2);
+L5 = Link('d', 0,  'a', 0,   'alpha', -pi/2);
+L6 = Link('d', 0,  'a', 0,   'alpha', pi/2, 'offset', pi/2);
+L7 = Link('d', 0,  'a', 0,   'alpha', 0);
+
+
+
+
+qz = [0 0 0 0 0 0 0 ];
+
+L = [L1 L2 L3 L4 L5 L6; L7;];
 rob = SerialLink(L , 'name', 'Giotto');
 
-
+%mdl_hyper3d(7);
+%rob = h3d;
 
 %% Getting the Image
 binaryImage = CreatingBinary();
@@ -33,24 +40,37 @@ trajectories = Filtering(trajectories);
 
 
 q_def = [];
-path_start = [0.4 0 -0.4; -0.38 0.5 -0.4];
-%p_start = mstraj(path_start, [], [1, 1]', path_start(1,:), 0.1, 0);
+path_start = [3.4 3 -3; 10 10 5];
+p_start = mstraj(path_start, [], [1, 1]', path_start(1,:), 0.3, 0.2);
+Tp =  SE3(-6, -6, -3) * SE3(p_start) * SE3.oa([0 1 0], [0, 0, -1]);
 
-qpartenza = transl(path_start(1,:))*trotx(pi);
 
-q_def = [q_def; qz];
+
+%q_def = [q_def; q_prec];
 k0 = 1;
 t = 5;
-obs = [0.4 -0.4 (-0.4 - 0.02)];
+obs =  [0.2 0.13 -0.4 -0.02 0 0 ];
 hold on;
  for k=1:length(trajectories)
     InitialPath = trajectories{k}';
-    ExtendedPath = [InitialPath; zeros(1,numcols(InitialPath));];
-    traj = mstraj(ExtendedPath(:,2:end)',[0.8 0.8 0.8], [], ExtendedPath(:,1)', 0.3, 0.2);
-    Tp =  SE3(0, 0, -3) * SE3(traj) * SE3.oa([0 1 0], [0, 0, -1]);
-    q_traj = rob.ikine6s(Tp);
-    m = rob.maniplty(q_traj);
-    m;
+    ExtendedPath = [InitialPath; zeros(1,numcols(InitialPath))];
+    traj = mstraj( [0, 0, -1] + ExtendedPath(:,2:end)',[0.8 0.8 0.8], [], [0, 0,  -1] +  ExtendedPath(:,1)', 0.3, 0.2);
+    
+    %Tp = SE3(traj) * SE3.oa( [0 1 0], [0 0 -1]);
+    Tp =  SE3(-0.6, 0.3, -0.4) * SE3(traj) * SE3.oa( [0 1 0], [0 0 -1]);
+    
+    q_traj = rob.ikine(Tp);
+    for i=1:length(q_traj(:,end))
+        J = rob.jacob0(q_traj(i,:));
+        xd = [0.2 0.2 0.2 0 0 0 ]';
+        qd = pinv(J) * xd;
+        N = null(J);
+        qd_null = funzione(q_traj,obs);
+        qp =   N * pinv(N) * qd_null;
+        q_traj(i,:) = q_traj(i,:) + qp';
+        m = rob.maniplty(q_traj);
+        m;
+    end
     q_def = [q_def; q_traj]; 
  end
 q_def = [q_def; qz]; 
@@ -59,11 +79,20 @@ q_def = [q_def; qz];
 %% plotting the result (This can take a while...)
 
    
-rob.plot(q_def, 'xyz','noraise', 'trail', {'r.', 'LineWidth', 2});
+rob.plot(q_def, 'top', 'xyz','noraise', 'trail', {'r.', 'LineWidth', 2});
 
 
 
-
+function funzione(traj, obs)
+    syms s1 s2 s3 s4 s5 s6 s7 ;
+    joints = [s1 s2 s3 s4 s5 s6 s7];
+    q_opt = [];
+    
+    omega_q = norm(double(rob.fkine(joints)) - [obs]');
+    omega_dot_q = gradient(omega_q, joints);
+    
+    
+end
 
 
 
@@ -105,7 +134,7 @@ function binaryImage = CreatingBinary()
 format long g;
 format compact;
 fontSize = 36;
-rgbImage = imread('Images/Marge.png');
+rgbImage = imread('Images/Image4.png');
 
 % Get the dimensions of the image.  numberOfColorBands should be = 3.
 [rows, columns, numberOfColorBands] = size(rgbImage);
@@ -174,8 +203,8 @@ max_Y = 0;
 
       for k =1:length(trajectories)
           for i = 1:length(trajectories{k})
-           trajectories{k}(i,1) = trajectories{k}(i,1) / maxX * 2;%dividing maxX
-           trajectories{k}(i,2) = trajectories{k}(i,2) / maxY * 2;%dividing maxY
+           trajectories{k}(i,1) =  (trajectories{k}(i,1) / (maxX)) ;%dividing maxX
+           trajectories{k}(i,2) =  (trajectories{k}(i,2) / (maxY)) ;%dividing maxY
           end
           plot(trajectories{k}(:,1), trajectories{k}(:,2), 'r', 'LineWidth', 2);
       end
@@ -204,12 +233,12 @@ function trajectories = Filtering(trajectories)
             end
             trajectories{i} = V;    
          elseif length(trajectories{i}) > 1500 %only if necessary
-            for j = 1:10:length(trajectories{i})% 7 it's the step size. A large step size  it is less precise. Anyway 7 is a good compromise
+            for j = 1:8:length(trajectories{i})% 7 it's the step size. A large step size  it is less precise. Anyway 7 is a good compromise
               V = [V; trajectories{i}(j,:)];   
             end
             trajectories{i} = V;    
          elseif length(trajectories{i}) > 400 %only if necessary
-            for j = 1:6:length(trajectories{i})% 7 it's the step size. A large step size  it is less precise. Anyway 7 is a good compromise
+            for j = 1:7:length(trajectories{i})% 7 it's the step size. A large step size  it is less precise. Anyway 7 is a good compromise
               V = [V; trajectories{i}(j,:)];   
             end
             trajectories{i} = V;    
