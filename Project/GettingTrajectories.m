@@ -1,7 +1,7 @@
 function[trajectories, B,L,N, A] =  GettingTrajectories(binaryImage)
 figure
 hold on;
-[B,L,N, A] = bwboundaries(binaryImage,4,'noholes');%use 'noholes'
+[B,L,N, A] = bwboundaries(binaryImage,4,'holes');%use 'noholes'
                                                  %to simplify
 trajectories = cell(0);
 

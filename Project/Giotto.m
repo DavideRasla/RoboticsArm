@@ -1,21 +1,6 @@
 clear all; clc;
 %% Robot
-%{
-L1 = Link('d', 0,  'a', 0,   'alpha', pi/2, 
-    'I',[0, 0.35, 0, 0, 0, 0], 
-    'r', [0, 0, 0], ...       % distance of ith origin to center of mass [x,y,z] in link reference frame
-    'm', 0, ...               % mass of link
-    'Jm', 200e-6, ...         % actuator inertia 
-    'G', -62.6111, ...        % gear ratio
-    'B', 1.48e-3, ...         % actuator viscous friction coefficient (measured at the motor)
-    'Tc', [0.395 -0.435], ... % actuator Coulomb friction coefficient for direction [-,+] (measured at the motor)
-    'qlim', [-160 160]*deg  );
-L2 = Link('d', 0,  'a', 2,   'alpha', 0);
-L3 = Link('d', 0,  'a', 2,   'alpha', -pi/2);
-L4 = Link('d', 0,  'a', 0,   'alpha', -pi/2);
-L5 = Link('d', 0,  'a', 0,   'alpha', pi/2, 'offset', pi/2);
-L6 = Link('d', 0,  'a', 0,   'alpha', 0);
-%}
+
 deg = pi/180;
 
 L1 = Revolute('d', 0, ...   % link length (Dennavit-Hartenberg notation)
@@ -90,13 +75,6 @@ L = [L1 L2 L3 L4 L5 L6];
 rob = SerialLink(L , 'name', 'Giotto');
 rob.plot(qr);
 
-%% Controller Parameters
-Jm = 200e-6;
-Bm = 817e-6;
-Km = 0.2280;
-Kd = 0.4490;
-
-
 
 %% Getting the Image
 binaryImage = CreatingBinary();
@@ -118,12 +96,8 @@ trajectories = Filtering(trajectories);
 
 
 q_def = [];
-path_start = [0.4 0 -0.4; -0.38 0.5 -0.4];
-%p_start = mstraj(path_start, [], [1, 1]', path_start(1,:), 0.1, 0);
 
-qpartenza = transl(path_start(1,:))*trotx(pi);
-
-q_def = [q_def; qz];
+q_def = [q_def; qr];
 
 hold on;
  for k=1:length(trajectories)
@@ -132,17 +106,26 @@ hold on;
     traj = mstraj([0 0 -2 ] + ExtendedPath(:,2:end)',[0.8 0.8 0.8], [], [0 0 -2 ] + ExtendedPath(:,1)', 0.3, 0.2);
     Tp =   SE3(traj) * SE3.oa([0 1 0], [0, 0, -1]);
     q_traj = rob.ikine6s(Tp);
+    %plotting manipulability
+    figure
+    hold on;
     m = rob.maniplty(q_traj);
-    m;
+    x = 0:pi/10:2*pi;
+    plot(m,'g');
     q_def = [q_def; q_traj]; 
  end
-q_def = [q_def; qz]; 
+tmax = 5;
+t=[0:100]'/100*tmax;
+[q,qd,qdd] = jtraj(q_traj(end,:), qr, t);
+q_rest = [q_def(end,:); q]; 
 
-
+q_def = [q_def; q_rest]; 
 %% plotting the result (This can take a while...)
+axis([-3 3 -3 3 -2 5]);
+figure
 
-   
 rob.plot(q_def, 'xyz','noraise', 'trail', {'r.', 'LineWidth', 2});
+
 
 
 
