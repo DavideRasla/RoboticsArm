@@ -1,8 +1,9 @@
 clear all; clc;
 %% Robot
 
+global obs raggio p_i shouldOptimize
+global PointsTrajectory   
 deg = pi/180;
-global obs r p_curr
 L1 = Revolute('d', 0, ...   % link length (Dennavit-Hartenberg notation)
     'a', 0, ...               % link offset (Dennavit-Hartenberg notation)
     'alpha', pi/2, ...        % link twist (Dennavit-Hartenberg notation)
@@ -75,7 +76,7 @@ L = [L1 L2 L3 L4 L5 L6];
 rob = SerialLink(L , 'name', 'Giotto');
 rob.plot(qr);
 
-
+EnableOpt = false;
 %% Getting the Image
 binaryImage = CreatingBinary();
 
@@ -91,10 +92,7 @@ hold on;
 figure
 %filtering the points in order to reduce the #
 trajectories = Filtering(trajectories);
-
-%% Mstraj for each traj
-
-
+%% Plotting trajectory
 q_def = [];
 
 q_def = [q_def; qr];
@@ -107,12 +105,12 @@ hold on;
     Tp =   SE3(traj) * SE3.oa([0 1 0], [0, 0, -1]);
     q_traj = rob.ikine6s(Tp);
     %plotting manipulability
-   % figure
-   % hold on;
+    figure
+    hold on;
     m = rob.maniplty(q_traj);
-    x = 0:pi/10:2*pi;
-   % plot(m,'g');
-    q_def = [q_def; q_traj]; 
+    plot(m,'g');
+    q = [q_def; q_traj]; 
+    q_def = [q_def; q_traj];
  end
 tmax = 5;
 t=[0:100]'/100*tmax;
@@ -124,58 +122,45 @@ q_def = [q_def; q_rest];
 axis([-3 3 -3 3 -2 5]);
 figure
 
-%rob.plot(q_def, 'xyz','noraise', 'trail', {'r.', 'LineWidth', 2});
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-r = 0.2;
-time = 0:0.1:5;
-[tj] = jtraj(qz, q_def(1,:), time);
-idx = round(length(time)/2);
-TO = rob.fkine(q_def(idx*2, :));
-obs = transl(TO);
-a = plot_sphere(obs', r, 'blue');
-%rob.plot(tj, 'trail' , '.k');
-
-
-
-H = rob.fkine(q_def);
-pj = transl(H);
-pj_opt = zeros(length(time), 3);
-opt_flag = false;
-for i = 2:1:length(time)-1
-    p_curr = pj(i, :);
-    p = pj(i+1, :); % Sto un passo avanti
-    % Vedo se devo ottimizzare
-    if (norm(p - obs) < r+0.1)
-        opt_flag = true;
-        
-    elseif ( norm(p_curr - obs) > r + 0.3) & ( opt_flag == true)
-          fprintf( '%s\n', "Fine optimizzaz")
-          opt_flag = false;
-    end
+if (EnableOpt == false)
+    rob.plot(q_def, 'xyz','noraise', 'trail', {'r.', 'LineWidth', 2});
     
-    if (opt_flag == true)
-            dis = @(x) norm(x-p);
-                if pj_opt(i-1, :) == [0,0, 0]
-                    p0 = pj(i, :);
-                else
-                    p0 = pj_opt(i-1, :);
-                end
-            y = fmincon(dis, p0, [], [], [], [],[],[],  @nonlin)
-            pj(i+1, :)
-            pj_opt(i+1, :) = y;
-            pj(i+1, :) = y;
-    end 
-end
-th = rob.ikine6s(pj);
-rob.plot(th,'xyz','noraise', 'trail', {'r.', 'LineWidth', 2} );
+else
+    %%%%%%%%%%%%%%%%%%   Avoidance   %%%%%%%%%%%%%%%%%%%%%%%%
 
-function [c, ceq] = nonlin(point)
-global obs r p_curr
-c(1) = -norm(point - obs) + (r+0.1); 
-c(2) = norm(point -obs) - (r+0.6);
-c(3) = norm(point - p_curr) - 0.28;
+    MatrixTrajPoints = rob.fkine(q_def);
+    PointsTrajectory = transl(MatrixTrajPoints); %contains ALL the trajectory points (may be long)
+    raggio = 0.3;
+   
+    K = 2; % posing the obs on the traj
+    NumOfStep = 50;
+    l = length(q_def(1,:));
+    MatrixObs = rob.fkine(q_def(l/2, :)); %contains the points in matrix form of the obstacle
+    obs = transl(MatrixObs);
+    plot_sphere(obs', raggio, 'blue');
+
+    OptimalPoints = zeros(NumOfStep, 3);
+    shouldOptimize = false;
+
+    for i = 2:1:NumOfStep-1
+        [p_i, p_next] = NextPoint(i);%%decides if the next point should be opt
+        if (shouldOptimize == true)
+                normPoints = @(x) norm(x-p_next);
+                pprec = OptimalPoints(i-1, :);     
+                result = fmincon(normPoints, pprec, [], [], [], [],[],[],  @CalcConst)
+                PointsTrajectory(i+1, :) = result;     
+        end 
+    end
+
+    th = rob.ikine6s(PointsTrajectory);
+    rob.plot(th,'xyz','noraise', 'trail', {'r.', 'LineWidth', 2} );
+end
+
+function [c, ceq] = CalcConst(actualPoint)
+global obs raggio p_i
+c(1) = -norm(actualPoint - obs) + (raggio+0.1); 
+c(2) = norm(actualPoint -obs) - (raggio+0.6);
+c(3) = norm(actualPoint - p_i) - 0.28;
 ceq = [];
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -192,4 +177,22 @@ rob.vellipse(q_end,'fillcolor', 'b','edgecolor', 'w', 'alpha', 0.5);
 
 
 %% FUNCTIONS
+
+function [p_i, p_inext] = NextPoint(i)
+global PointsTrajectory  raggio  obs shouldOptimize
+    pi = PointsTrajectory(i, :);  
+    p_inext = PointsTrajectory(i+1, :);  
+    if (norm(pi - obs) < raggio+0.1)
+          shouldOptimize = true; 
+     elseif ( ( norm(pi - obs) > raggio + 0.4) & ( shouldOptimize == true))
+          shouldOptimize = false;
+    end
+    p_i = pi;
+end
+          
+    
+
+
+
+
 
